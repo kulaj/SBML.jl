@@ -96,7 +96,8 @@ MODEL2 = Model(Dict("k1" => 1.), Dict(), Dict("c1" => COMP1), Dict("s2" => SPECI
     isequal(nameof(odesys), :odesys)
 
     # Test ODEProblem
-    oprob = ODEProblem(MODEL1, [0., 1.])
+    os = ODESystem(sbmlfile)
+    oprob = ODEProblem(os, u0, [0.,1.], par)
     sol = solve(oprob, Tsit5())
     println("soln")
     println(sol.u)

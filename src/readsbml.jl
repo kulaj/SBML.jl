@@ -83,7 +83,7 @@ function readSBML(fn::String;conversion_options=Dict())::Model
     doc = ccall(sbml(:readSBML), VPtr, (Cstring,), fn)
     try
         n_errs = ccall(sbml(:SBMLDocument_getNumErrors), Cuint, (VPtr,), doc)
-        for i = 0:n_errs-1
+        for i = 0:n_errs - 1
             err = ccall(sbml(:SBMLDocument_getError), VPtr, (VPtr, Cuint), doc, i)
             msg = get_string(err, :XMLError_getMessage)
             @warn "SBML reported error: $msg"
@@ -98,24 +98,24 @@ function readSBML(fn::String;conversion_options=Dict())::Model
 
         for (converter, kwargs) in conversion_options
             if converter == "setLevelAndVersion"
-                success = ccall(sbml(:SBMLDocument_setLevelAndVersion), Cint, (VPtr,Cint,Cint), doc, kwargs["level"], kwargs["version"])
+                success = ccall(sbml(:SBMLDocument_setLevelAndVersion), Cint, (VPtr, Cint, Cint), doc, kwargs["level"], kwargs["version"])
                 continue
             end
             props = ccall(sbml(:ConversionProperties_create), VPtr, ())
             option = ccall(sbml(:ConversionOption_create), VPtr, (Cstring,), converter)
             ccall(sbml(:ConversionProperties_addOption), Cvoid, (VPtr, VPtr), props, option)
-            if !(kwargs==nothing)
+            if !(kwargs == nothing)
                 for (k, v) in kwargs
                     option = ccall(sbml(:ConversionOption_create), VPtr, (Cstring,), k)
                     ccall(sbml(:ConversionOption_setValue), Cvoid, (VPtr, Cstring), option, v)
                     ccall(sbml(:ConversionProperties_addOption), Cvoid, (VPtr, VPtr), props, option)
                 end
-            success = ccall(sbml(:SBMLDocument_convert), Cint, (VPtr,VPtr), doc, props)
+                success = ccall(sbml(:SBMLDocument_convert), Cint, (VPtr, VPtr), doc, props)
             end
         end
 
         n_errs = ccall(sbml(:SBMLDocument_getNumErrors), Cuint, (VPtr,), doc)
-        for i = 0:n_errs-1
+        for i = 0:n_errs - 1
             err = ccall(sbml(:SBMLDocument_getError), VPtr, (VPtr, Cuint), doc, i)
             msg = SBML.get_string(err, :XMLError_getMessage)
             @warn "SBML reported error after conversion: $msg"
@@ -315,10 +315,11 @@ function extractModel(mdl::VPtr)::Model
     reactions = Dict{String,Reaction}()
     for i = 1:ccall(sbml(:Model_getNumReactions), Cuint, (VPtr,), mdl)
         re = ccall(sbml(:Model_getReaction), VPtr, (VPtr, Cuint), mdl, i - 1)
+        lb = (0, "") # (bound value, unit id)
         if ccall(sbml(:Reaction_getReversible), Cint, (VPtr,), re) == 1
-            throw(AssertionError("Reaction $(get_string(re, :Reaction_getId)) is reversible, but currently only irreversible reactions are supported."))
+            lb = (-Inf, "") # (bound value, unit id)
+             #throw(AssertionError("Reaction $(get_string(re, :Reaction_getId)) is reversible, but currently only irreversible reactions are supported."))
         end     
-        lb = (-Inf, "") # (bound value, unit id)
         ub = (Inf, "")
         oc = 0.0
         math = nothing
@@ -435,7 +436,7 @@ function extractModel(mdl::VPtr)::Model
             end
         end
     end
-
+    
     function_definitions = Dict{String,FunctionDefinition}()
     for i = 1:ccall(sbml(:Model_getNumFunctionDefinitions), Cuint, (VPtr,), mdl)
         fd = ccall(sbml(:Model_getFunctionDefinition), VPtr, (VPtr, Cuint), mdl, i - 1)
@@ -452,7 +453,7 @@ function extractModel(mdl::VPtr)::Model
                 get_annotation(fd),
             )
     end
-
+    
     return Model(
         parameters,
         units,

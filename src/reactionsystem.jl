@@ -10,12 +10,14 @@ using Catalyst, ModelingToolkit, Symbolics
 """ ReactionSystem constructor """
 function ModelingToolkit.ReactionSystem(model::Model; kwargs...)  # Todo: requires unique parameters (i.e. SBML must have been imported with localParameter promotion in libSBML)
     model = make_extensive(model)
-    # model = expand_reversible(model)
+    # @info "# REACTIONS" length(model.reactions)
+    model = expand_reversible(model)
     rxs = mtk_reactions(model)
+    @info "RXS" rxs
     t = Catalyst.DEFAULT_IV
     species = [create_var(k) for k in keys(model.species)]
     params = vcat([create_param(k) for k in keys(model.parameters)], [create_param(k) for k in keys(model.compartments)])
-    ReactionSystem(rxs,t,species,params; kwargs...)
+    ReactionSystem(rxs, t, species, params; kwargs...)
 end
 
 """ ReactionSystem constructor """
@@ -41,13 +43,13 @@ function ModelingToolkit.ODESystem(sbmlfile::String; kwargs...)
 end
 
 """ ODEProblem constructor """
-function ModelingToolkit.ODEProblem(model::Model,tspan;kwargs...)  # PL: Todo: add u0 and parameters argument
+function ModelingToolkit.ODEProblem(model::Model, tspan;kwargs...)  # PL: Todo: add u0 and parameters argument
     odesys = ODESystem(model;kwargs...)
     ODEProblem(odesys, [], tspan)
 end
 
 """ ODEProblem constructor """
-function ModelingToolkit.ODEProblem(sbmlfile::String,tspan;kwargs...)  # PL: Todo: add u0 and parameters argument
+function ModelingToolkit.ODEProblem(sbmlfile::String, tspan;kwargs...)  # PL: Todo: add u0 and parameters argument
     odesys = ODESystem(sbmlfile;kwargs...)
     ODEProblem(odesys, [], tspan)
 end
@@ -69,7 +71,7 @@ function to_initial_amounts(model::Model)  # Test written
             specie.initial_amount = (specie.initial_concentration[1] * compartment.size, "")
             specie.initial_concentration = nothing
         end
-    end
+        end
     model
 end
 
@@ -81,10 +83,32 @@ function to_extensive_math(model::Model)
         reaction.km = 1.  # PL: Todo: @Anand can you multiply species with `hOSU=true` with their compartment volume?
     end
     reaction
-end
+    end
 
 """ Expand reversible reactions to two reactions """
 function expand_reversible(model)
+    count = 0
+    for key in collect(keys(model.reactions))
+        reaction = model.reactions[key]
+        # If a reaction is reverse only, the forward reaction (which
+        # will be constrained to 0) will be left in the model.
+        if reaction.lb[1] < 0
+            count += 1
+            # #@info "ORIGINAL" model.reactions[key]
+            reverse_reaction = deepcopy(reaction)
+            reverse_reaction.lb = (max(0, -reaction.ub[1]), reaction.ub[2])
+            reverse_reaction.ub = (-reaction.lb[1], reaction.lb[2])
+            reverse_reaction.oc = reaction.oc * -1
+            reaction.lb = (max(0, reaction.lb[1]), reaction.lb[2])
+            reaction.ub = (max(0, reaction.ub[1]), reaction.ub[2])
+            for (k, v) in reverse_reaction.stoichiometry
+                reverse_reaction.stoichiometry[k] = v * -1
+            end
+            model.reactions[key * "_REVERSE"]  = reverse_reaction
+            # #@info "REVERSE" model.reactions[key * "_REVERSE"]
+        end
+    end
+    # @info "COUNT ADDED" count
     model  # Todo: convert all Reactions that are `reversible=true` to a forward and reverse reaction with `reversible=false`.
 end
 
@@ -92,13 +116,13 @@ end
 function _get_substitutions(model)
     subsdict = Dict()
     for k in keys(model.species)
-        push!(subsdict, Pair(Num(Variable(Symbol(k))),create_var(k)))
+        push!(subsdict, Pair(Num(Variable(Symbol(k))), create_var(k)))
     end
     for k in keys(model.parameters)
-        push!(subsdict, Pair(Num(Variable(Symbol(k))),create_param(k)))
+        push!(subsdict, Pair(Num(Variable(Symbol(k))), create_param(k)))
     end
     for k in keys(model.compartments)
-        push!(subsdict, Pair(Num(Variable(Symbol(k))),create_param(k)))
+        push!(subsdict, Pair(Num(Variable(Symbol(k))), create_param(k)))
     end
     subsdict
 end
@@ -107,11 +131,12 @@ end
 function mtk_reactions(model::Model)
     rxs = []
     for reaction in values(model.reactions)
+        # #@info "REACTION" reaction
         reactants = Num[]
         rstoich = Num[]
         products = Num[]
         pstoich = Num[]
-        for (k,v) in reaction.stoichiometry
+        for (k, v) in reaction.stoichiometry
             if v < 0
                 push!(reactants, create_var(k))
                 push!(rstoich, -v)
@@ -121,37 +146,41 @@ function mtk_reactions(model::Model)
             else
                 @error("Stoichiometry of $k must be non-zero")
             end
-        end
-        if (length(reactants)==0) reactants = nothing; rstoich = nothing end
-        if (length(products)==0) products = nothing; pstoich = nothing end
+            end
+        if (length(reactants) == 0) reactants = nothing; rstoich = nothing end
+        if (length(products) == 0) products = nothing; pstoich = nothing end
         subsdict = _get_substitutions(model)
         # PL: Todo: @Anand: can you convert kinetic_math to Symbolic expression. Perhaps it would actually better if kinetic Math would be a Symbolics.jl expression rather than of type `Math`? But Mirek wants `Math`, I think.
         symbolic_math = Num(Variable(Symbol("k1")))  # PL: Just a dummy to get tests running.
         kl = substitute(symbolic_math, subsdict)  # PL: Todo: might need conversion of kinetic_math to Symbolic MTK expression
-        push!(rxs, ModelingToolkit.Reaction(kl,reactants,products,rstoich,pstoich;only_use_rate=true))
+        if (isnothing(reactants) && isnothing(products))
+            # @info "EMPTY" reaction
+            continue
+        end
+        push!(rxs, ModelingToolkit.Reaction(kl, reactants, products, rstoich, pstoich;only_use_rate=true))
     end
     rxs
-end
-
+    end
+    
 
 """ Extract u0map from Model """
 function get_u0(model)
     u0map = []
-    for (k,v) in model.species
-        println(v)
-        push!(u0map,Pair(create_var(k), v.initial_amount[1]))
+    for (k, v) in model.species
+        # println(v)
+        push!(u0map, Pair(create_var(k), v.initial_amount[1]))
     end
     u0map
 end
 
 """ Extract paramap from Model """
 function get_paramap(model)
-    paramap = Pair{Num, Float64}[]
-    for (k,v) in model.parameters
-        push!(paramap,Pair(create_param(k),v))
+    paramap = Pair{Num,Float64}[]
+    for (k, v) in model.parameters
+        push!(paramap, Pair(create_param(k), v))
     end
-    for (k,v) in model.compartments
-        push!(paramap,Pair(create_param(k),v.size))
+    for (k, v) in model.compartments
+        push!(paramap, Pair(create_param(k), v.size))
     end
     paramap
 end
