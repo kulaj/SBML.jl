@@ -130,6 +130,7 @@ end
 """ Convert SBML.Reaction to MTK.Reaction """
 function mtk_reactions(model::Model)
     rxs = []
+    count = 0
     for reaction in values(model.reactions)
         # #@info "REACTION" reaction
         reactants = Num[]
@@ -147,18 +148,20 @@ function mtk_reactions(model::Model)
                 @error("Stoichiometry of $k must be non-zero")
             end
             end
-        if (length(reactants) == 0) reactants = nothing; rstoich = nothing end
-        if (length(products) == 0) products = nothing; pstoich = nothing end
+        # if (length(reactants) == 0) reactants = nothing; rstoich = nothing end
+        # if (length(products) == 0) products = nothing; pstoich = nothing end
         subsdict = _get_substitutions(model)
         # PL: Todo: @Anand: can you convert kinetic_math to Symbolic expression. Perhaps it would actually better if kinetic Math would be a Symbolics.jl expression rather than of type `Math`? But Mirek wants `Math`, I think.
         symbolic_math = Num(Variable(Symbol("k1")))  # PL: Just a dummy to get tests running.
         kl = substitute(symbolic_math, subsdict)  # PL: Todo: might need conversion of kinetic_math to Symbolic MTK expression
         if (isnothing(reactants) && isnothing(products))
             # @info "EMPTY" reaction
-            continue
+            count += 1
+            # continue
         end
         push!(rxs, ModelingToolkit.Reaction(kl, reactants, products, rstoich, pstoich;only_use_rate=true))
     end
+    @info "COUNT EMPTY" count
     rxs
     end
     
