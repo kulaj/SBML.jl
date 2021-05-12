@@ -64,6 +64,7 @@ end
 
 """ Convert initial_concentration to initial_amount """
 function to_initial_amounts(model::Model)  # Test written
+    @info "INITIAL AMOUNTS"
     model = deepcopy(model)
     for specie in values(model.species)
         if isequal(specie.initial_amount, nothing)
@@ -127,6 +128,22 @@ function _get_substitutions(model)
     subsdict
 end
 
+function to_symbol_string(k::MathVal)
+    return string(k.val)
+end
+
+function to_symbol_string(k::MathIdent)
+    return "Num(Variable(Symbol($k.id)))"
+end
+
+function to_symbol_string(k::MathApply)
+    return "(" * to_symbol_string(k.args[1]) * k.fn * to_symbol_string(k.args[2]) * ")"
+end
+
+function make_symbolic(k::Math)
+    return eval(Meta.parse(to_symbol_string(k)))
+end
+
 """ Convert SBML.Reaction to MTK.Reaction """
 function mtk_reactions(model::Model)
     rxs = []
@@ -151,8 +168,8 @@ function mtk_reactions(model::Model)
         # if (length(reactants) == 0) reactants = nothing; rstoich = nothing end
         # if (length(products) == 0) products = nothing; pstoich = nothing end
         subsdict = _get_substitutions(model)
-        # PL: Todo: @Anand: can you convert kinetic_math to Symbolic expression. Perhaps it would actually better if kinetic Math would be a Symbolics.jl expression rather than of type `Math`? But Mirek wants `Math`, I think.
-        symbolic_math = Num(Variable(Symbol("k1")))  # PL: Just a dummy to get tests running.
+        # PL: Todo: @Anand: can you convert kinetic_mathto Symbolic expression. Perhaps it would actually better if kinetic Math would be a Symbolics.jl expression rather than of type `Math`? But Mirek wants `Math`, I think.
+        symbolic_math = make_symbolic(reaction.kinetic_math)
         kl = substitute(symbolic_math, subsdict)  # PL: Todo: might need conversion of kinetic_math to Symbolic MTK expression
         if (isnothing(reactants) && isnothing(products))
             # @info "EMPTY" reaction

@@ -260,7 +260,7 @@ function extractModel(mdl::VPtr)::Model
                 get_string(sp, :Species_getSubstanceUnits),
             )
         end
-
+                
         ic = nothing
         if ccall(sbml(:Species_isSetInitialConcentration), Cint, (VPtr,), sp) != 0
             ic = (
@@ -268,7 +268,7 @@ function extractModel(mdl::VPtr)::Model
                 get_string(sp, :Species_getSubstanceUnits),
             )
         end
-
+        
         species[get_string(sp, :Species_getId)] = Species(
             get_optional_string(sp, :Species_getName),  # PL: wondering if we should use Id instead of name here
             get_string(sp, :Species_getCompartment),
@@ -318,7 +318,7 @@ function extractModel(mdl::VPtr)::Model
         lb = (0, "") # (bound value, unit id)
         if ccall(sbml(:Reaction_getReversible), Cint, (VPtr,), re) == 1
             lb = (-Inf, "") # (bound value, unit id)
-             #throw(AssertionError("Reaction $(get_string(re, :Reaction_getId)) is reversible, but currently only irreversible reactions are supported."))
+             # throw(AssertionError("Reaction $(get_string(re, :Reaction_getId)) is reversible, but currently only irreversible reactions are supported."))
         end     
         ub = (Inf, "")
         oc = 0.0
@@ -331,7 +331,7 @@ function extractModel(mdl::VPtr)::Model
                 p = ccall(sbml(:KineticLaw_getParameter), VPtr, (VPtr, Cuint), kl, j - 1)
                 id = get_string(p, :Parameter_getId)
                 pval = () -> ccall(sbml(:Parameter_getValue), Cdouble, (VPtr,), p)
-                punit = () -> get_string(p, :Parameter_getUnits)
+        punit = () -> get_string(p, :Parameter_getUnits)
                 if id == "LOWER_BOUND"
                     lb = (pval(), punit())
                 elseif id == "UPPER_BOUND"
@@ -378,7 +378,7 @@ function extractModel(mdl::VPtr)::Model
             add_stoi(sr, -1)
         end
 
-        for j = 1:ccall(sbml(:Reaction_getNumProducts), Cuint, (VPtr,), re)
+            for j = 1:ccall(sbml(:Reaction_getNumProducts), Cuint, (VPtr,), re)
             sr = ccall(sbml(:Reaction_getProduct), VPtr, (VPtr, Cuint), re, j - 1)
             add_stoi(sr, 1)
         end
@@ -402,7 +402,7 @@ function extractModel(mdl::VPtr)::Model
         reid = get_string(re, :Reaction_getId)
         reactions[reid] = Reaction(
             stoi,
-            lb,
+        lb,
             ub,
             haskey(objectives_fbc, reid) ? objectives_fbc[reid] : oc,
             association,
