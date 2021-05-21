@@ -91,9 +91,10 @@ function expand_reversible(model)
     count = 0
     for key in collect(keys(model.reactions))
         reaction = model.reactions[key]
+        # @info "" reaction
         # If a reaction is reverse only, the forward reaction (which
         # will be constrained to 0) will be left in the model.
-        if reaction.lb[1] < 0
+        if !isnothing(reaction.lb) && reaction.lb[1] < 0
             count += 1
             # #@info "ORIGINAL" model.reactions[key]
             reverse_reaction = deepcopy(reaction)

@@ -8,5 +8,5 @@ import Pkg
     # include("ecoli_flux.jl")
     # include("loadmodels.jl")
     include("reactionsystem.jl")
-    include("loaddynamicmodels.jl")
+    # include("loaddynamicmodels.jl")
 end
